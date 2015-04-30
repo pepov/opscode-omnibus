@@ -6,6 +6,7 @@
 
 require 'chef'
 require 'fileutils'
+require 'json'
 require 'sequel'
 require 'highline/import'
 
@@ -110,9 +111,6 @@ class OpenSourceChef11Upgrade
 
     create_org_json(org_dir, org_name, org_full_name)
 
-    # Copy over the key_dump.json file
-    FileUtils.cp(key_file, "#{chef12_data_dir}/key_dump.json")
-
     # Copy over users
     FileUtils.cp_r("#{chef11_data_dir}/users", "#{chef12_data_dir}/users")
 
@@ -120,6 +118,9 @@ class OpenSourceChef11Upgrade
     %w{clients cookbooks data_bags environments nodes roles}.each do |name|
       FileUtils.cp_r("#{chef11_data_dir}/#{name}", "#{org_dir}/#{name}")
     end
+
+    # Transform the keydump file and remove obsolete clients
+    transform_keydump(key_file, chef11_data_dir, chef12_data_dir, org_dir)
 
     user_names, admin_users = transform_chef11_user_data(chef11_data_dir, chef12_data_dir)
 
@@ -137,6 +138,20 @@ class OpenSourceChef11Upgrade
     create_billing_admins(admin_users, groups_dir)
 
     log "Data transformed and saved to #{chef12_data_dir}"
+  end
+
+  def transform_keydump(key_file, chef11_data_dir, chef12_data_dir, org_dir)
+      key_dump = JSON.parse(File.read(key_file))
+      key_dump.each do | user |
+          client_data_file = File.join(chef11_data_dir, "clients", user['username'] + ".json")
+          if File.exists? client_data_file
+              puts "fixing user key for " + user['username']
+              user['public_key'] = JSON.parse(File.read(client_data_file))['public_key']
+              puts "removing client object"
+              File.delete(File.join(org_dir, "clients", user['username'] + ".json"))
+          end
+      end
+      File.write(File.join(chef12_data_dir, "key_dump.json"), key_dump.to_json)
   end
 
   def set_server_state_for_upload
