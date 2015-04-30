@@ -340,7 +340,7 @@ EOF
       node_name "#{@options.chef11_admin_client_name}"
       client_key "#{@options.chef11_admin_client_key}"
       repo_mode 'everything'
-      versioned_cookbooks true
+      versioned_cookbooks false
       chef_repo_path "#{chef11_data_dir}"
     EOH
 
